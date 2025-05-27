@@ -1,0 +1,425 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: 210 100% 50%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 200 70% 95%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --accent: 190 90% 50%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --primary: 210 100% 50%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+
+  --accent: 190 90% 50%;
+  --accent-foreground: 210 40% 98%;
+
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Estilos personalizados mejorados */
+.gradient-bg {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  transition: opacity 0.3s ease;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.hover-scale {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card {
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+}
+
+.dashboard-header {
+  background: linear-gradient(to right, hsl(var(--primary) / 0.9), hsl(var(--accent) / 0.9));
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+.sidebar-item {
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.sidebar-item:hover {
+  background-color: hsl(var(--secondary));
+}
+
+.sidebar-item.active {
+  background-color: hsl(var(--primary) / 0.1);
+  border-left: 3px solid hsl(var(--primary));
+}
+
+/* Animaciones mejoradas */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.animate-pulse-blue {
+  animation: pulse 2s infinite;
+}
+
+/* Estilos para el mapa */
+.map-container {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.map-container:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Mejoras para dispositivos móviles */
+@media (max-width: 640px) {
+  .mobile-full-width {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .mobile-stack {
+    flex-direction: column;
+  }
+
+  .mobile-compact {
+    padding: 0.75rem !important;
+  }
+
+  .mobile-text-sm {
+    font-size: 0.875rem !important;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  /* Mejoras para diálogos en móviles */
+  .mobile-dialog {
+    padding: 1rem !important;
+    width: 95vw !important;
+  }
+
+  /* Mejoras para tablas en móviles */
+  .mobile-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Mejoras para botones en móviles */
+  .mobile-full-width-btn {
+    width: 100% !important;
+    margin-top: 0.5rem;
+  }
+
+  /* Mejoras para el canvas de firma */
+  .signature-container {
+    max-width: 100% !important;
+  }
+
+  /* Ajustes para iframe en móviles */
+  .mobile-iframe {
+    height: 40vh !important;
+  }
+
+  /* Ajustes para pestañas en móviles */
+  .mobile-tabs {
+    font-size: 0.875rem;
+  }
+
+  /* Ajustes para badges en móviles */
+  .mobile-badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.5rem;
+  }
+
+  /* Animación de ayuda para scroll horizontal */
+  @keyframes scrollHint {
+    0% {
+      transform: translateX(0);
+      opacity: 0.7;
+    }
+    50% {
+      transform: translateX(10px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(0);
+      opacity: 0.7;
+    }
+  }
+
+  .scroll-hint {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    animation: scrollHint 1.5s infinite;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    padding: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+  }
+
+  /* Mejoras para tarjetas en móviles */
+  .card-mobile {
+    margin-bottom: 0.75rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Mejoras para el canvas de firma en móviles */
+  .signature-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    pointer-events: none;
+  }
+}
+
+/* Mejoras para la visualización de PDFs */
+.pdf-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  border: 1px solid hsl(var(--border));
+}
+
+/* Mejoras para el canvas de firma */
+.signature-canvas-container {
+  touch-action: none;
+  width: 100%;
+  border: 2px dashed hsl(var(--border));
+  border-radius: 0.375rem;
+  background-color: white;
+  overflow: hidden;
+}
+
+/* Mejoras para inputs con iconos */
+.relative .absolute {
+  pointer-events: none;
+}
+
+/* Mejoras para dispositivos móviles */
+@media (max-width: 640px) {
+  /* Ajustes para el canvas de firma */
+  canvas {
+    touch-action: none !important;
+  }
+
+  /* Mejoras para diálogos en móviles */
+  .dialog-content {
+    width: 95vw !important;
+    padding: 16px !important;
+  }
+
+  /* Ajustes para iframe en móviles */
+  iframe {
+    height: 250px !important;
+  }
+
+  /* Mejoras para botones en móviles */
+  .dialog-footer {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .dialog-footer button {
+    width: 100% !important;
+  }
+
+  /* Mejoras para tabs en móviles */
+  .tabs-list {
+    padding: 2px !important;
+  }
+
+  .tabs-trigger {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+  }
+}
+
+/* Mejoras para el canvas de firma */
+.signature-canvas {
+  width: 100% !important;
+  touch-action: none !important;
+  cursor: crosshair !important;
+}
+
+/* Animación de pulso para elementos interactivos */
+@keyframes pulse-hint {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+}
+
+.pulse-hint {
+  animation: pulse-hint 1.5s infinite;
+}
+
+/* Solución específica para el problema de superposición del mapa con modales */
+/* Asegurar que los diálogos tengan la máxima prioridad */
+[data-radix-dialog-overlay] {
+  z-index: 9998 !important;
+}
+
+[data-radix-dialog-content] {
+  z-index: 9999 !important;
+}
+
+/* Controlar específicamente el z-index del contenedor del mapa */
+.map-container {
+  z-index: 1 !important;
+  position: relative;
+}
+
+/* Controlar todos los elementos internos del mapa */
+.map-container * {
+  z-index: 1 !important;
+}
+
+/* Controlar específicamente los iframes y canvas del mapa */
+.map-container iframe,
+.map-container canvas,
+.map-container .leaflet-container,
+.map-container .leaflet-map-pane,
+.map-container .leaflet-tile-pane,
+.map-container .leaflet-overlay-pane,
+.map-container .leaflet-shadow-pane,
+.map-container .leaflet-marker-pane,
+.map-container .leaflet-tooltip-pane,
+.map-container .leaflet-popup-pane,
+.map-container .leaflet-control-container {
+  z-index: 1 !important;
+}
+
+/* Asegurar que cuando hay un modal abierto, el mapa esté completamente por debajo */
+body:has([data-radix-dialog-overlay]) .map-container,
+body:has([data-radix-dialog-overlay]) .map-container * {
+  z-index: 0 !important;
+}
