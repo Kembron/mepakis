@@ -15,7 +15,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, AlertTriangle, Search, Loader2, Users, RefreshCw, XCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, AlertTriangle, Search, Loader2, Users, RefreshCw, XCircle, Eye, EyeOff } from "lucide-react" // Importamos Eye y EyeOff
 import { useToast } from "@/hooks/use-toast"
 import { createWorker, updateWorker, deleteWorker, getWorkersPaginated } from "@/lib/actions"
 import { Pagination } from "@/components/ui/pagination"
@@ -50,6 +50,11 @@ export default function WorkerManagement() {
   const [searchQuery, setSearchQuery] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
   const initialLoadDone = useRef(false)
+  // Nuevo estado para controlar la visibilidad de la contraseña en el formulario de añadir
+  const [showAddPassword, setShowAddPassword] = useState(false)
+  // Nuevo estado para controlar la visibilidad de la contraseña en el formulario de editar
+  const [showEditPassword, setShowEditPassword] = useState(false)
+
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -236,11 +241,12 @@ export default function WorkerManagement() {
       lastName: worker.lastName || "",
       birthDate: worker.birthDate || "",
       email: worker.email || "",
-      password: "",
+      password: "", // Siempre limpiar la contraseña al abrir el diálogo de edición por seguridad
       phone: worker.phone || "",
       department: worker.department || "",
       city: worker.city || "",
     })
+    setShowEditPassword(false); // Reiniciar visibilidad al abrir el diálogo
     setIsEditDialogOpen(true)
   }
 
@@ -353,17 +359,35 @@ export default function WorkerManagement() {
                       placeholder="correo@ejemplo.com"
                     />
                   </div>
+                  {/* Campo de Contraseña - ADD WORKER */}
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="password">Contraseña</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      placeholder="Contraseña"
-                    />
+                    <div className="relative"> {/* Contenedor relativo para el input y el ojo */}
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showAddPassword ? "text" : "password"} // Tipo dinámico
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        placeholder="Contraseña"
+                        className="pr-10" // Padding para el ojo
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAddPassword(!showAddPassword)} // Toggle local
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none z-20 p-1.5"
+                        style={{ pointerEvents: "auto" }} // ¡Crucial para la clicabilidad!
+                        aria-label={showAddPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showAddPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
+                  {/* Fin Campo de Contraseña - ADD WORKER */}
                   <div className="space-y-2">
                     <Label htmlFor="phone">Teléfono</Label>
                     <Input
@@ -542,17 +566,35 @@ export default function WorkerManagement() {
                 <Label htmlFor="edit-email">Correo electrónico</Label>
                 <Input id="edit-email" name="email" type="email" value={formData.email} onChange={handleInputChange} />
               </div>
+              {/* Campo de Contraseña - EDIT WORKER */}
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="edit-password">Contraseña (dejar en blanco para mantener)</Label>
-                <Input
-                  id="edit-password"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder="Nueva contraseña"
-                />
+                <div className="relative"> {/* Contenedor relativo para el input y el ojo */}
+                  <Input
+                    id="edit-password"
+                    name="password"
+                    type={showEditPassword ? "text" : "password"} // Tipo dinámico
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Nueva contraseña"
+                    className="pr-10" // Padding para el ojo
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)} // Toggle local
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none z-20 p-1.5"
+                    style={{ pointerEvents: "auto" }} // ¡Crucial para la clicabilidad!
+                    aria-label={showEditPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  >
+                    {showEditPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
+              {/* Fin Campo de Contraseña - EDIT WORKER */}
               <div className="space-y-2">
                 <Label htmlFor="edit-phone">Teléfono</Label>
                 <Input id="edit-phone" name="phone" value={formData.phone} onChange={handleInputChange} />
