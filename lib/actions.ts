@@ -46,7 +46,6 @@ const locationSchema = z.object({
 
 const checkInSchema = z.object({
   workerId: z.string(),
-  locationId: z.string(),
   timestamp: z.string(),
   coordinates: z.object({
     lat: z.number(),
@@ -859,7 +858,7 @@ export async function getCheckInRecordsPaginated(
 
 // Update the recordCheckIn function to use PostgreSQL RETURNING clause
 export async function recordCheckIn(data: any) {
-  console.log("Iniciando proceso de check-in con datos:", JSON.stringify(data, null, 2))
+  console.log("Iniciando proceso de check-in automático con datos:", JSON.stringify(data, null, 2))
 
   try {
     // Validar datos
@@ -899,80 +898,111 @@ export async function recordCheckIn(data: any) {
     }
     console.log("No se encontraron check-ins activos para este trabajador")
 
-    // Obtener la ubicación del domicilio
-    console.log(`Obteniendo información del domicilio con ID ${data.locationId}...`)
-    let locations
+    // Obtener todos los domicilios disponibles
+    console.log("Obteniendo todos los domicilios disponibles...")
+    let allLocations
     try {
-      locations = await query("SELECT id, name, latitude, longitude, geofence_radius FROM locations WHERE id = $1", [
-        data.locationId,
-      ])
+      allLocations = await query("SELECT id, name, latitude, longitude, geofence_radius FROM locations", [])
     } catch (dbError) {
-      console.error("Error al obtener información del domicilio:", dbError)
+      console.error("Error al obtener domicilios:", dbError)
       return {
         success: false,
-        error: "Error al obtener información del domicilio. Intenta nuevamente.",
+        error: "Error al obtener información de los domicilios. Intenta nuevamente.",
       }
     }
 
-    const location = locations[0]
-    console.log("Datos del domicilio:", {
-      id: location.id,
-      name: location.name,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      geofence_radius: location.geofence_radius,
-    })
+    if (!allLocations || allLocations.length === 0) {
+      console.log("No se encontraron domicilios en la base de datos")
+      return {
+        success: false,
+        error: "No hay domicilios registrados en el sistema.",
+      }
+    }
 
-    // Calcular la distancia entre la ubicación actual y el domicilio
+    console.log(`Se encontraron ${allLocations.length} domicilios para evaluar`)
+
+    // Validar coordenadas del trabajador
     const workerLat = Number(data.coordinates.lat)
     const workerLng = Number(data.coordinates.lng)
 
-    // Asegurarse de que las coordenadas se conviertan correctamente a números
-    const locationLat = Number.parseFloat(String(location.latitude))
-    const locationLng = Number.parseFloat(String(location.longitude))
-    const geofenceRadius = Number.parseInt(String(location.geofence_radius), 10)
-
-    // Validar que las coordenadas son números válidos
-    if (isNaN(workerLat) || isNaN(workerLng) || isNaN(locationLat) || isNaN(locationLng)) {
-      console.error("Coordenadas inválidas:", {
-        worker: { lat: workerLat, lng: workerLng },
-        location: { lat: locationLat, lng: locationLng },
-      })
+    if (isNaN(workerLat) || isNaN(workerLng)) {
+      console.error("Coordenadas del trabajador inválidas:", data.coordinates)
       return {
         success: false,
         error: "Coordenadas inválidas. Por favor, actualiza tu ubicación e intenta nuevamente.",
       }
     }
 
-    console.log("Coordenadas para cálculo de distancia:", {
-      worker: { lat: workerLat, lng: workerLng },
-      location: { lat: locationLat, lng: locationLng },
-    })
+    // Encontrar el domicilio más cercano que esté dentro del radio permitido
+    let closestLocation = null
+    let closestDistance = Number.POSITIVE_INFINITY
+    const locationDistances = []
 
-    console.log(`Calculando distancia entre (${workerLat}, ${workerLng}) y (${locationLat}, ${locationLng})...`)
-    let distance
-    try {
-      distance = calculateDistance(workerLat, workerLng, locationLat, locationLng)
-      console.log(`Distancia calculada: ${distance} metros, Radio permitido: ${geofenceRadius} metros`)
-    } catch (distanceError) {
-      console.error("Error al calcular distancia:", distanceError)
-      return {
-        success: false,
-        error: "Error al calcular la distancia. Por favor, actualiza tu ubicación e intenta nuevamente.",
+    for (const location of allLocations) {
+      try {
+        // Convertir coordenadas del domicilio
+        const locationLat = Number.parseFloat(String(location.latitude))
+        const locationLng = Number.parseFloat(String(location.longitude))
+        const geofenceRadius = Number.parseInt(String(location.geofence_radius), 10)
+
+        // Validar coordenadas del domicilio
+        if (isNaN(locationLat) || isNaN(locationLng) || isNaN(geofenceRadius)) {
+          console.warn(`Domicilio ${location.name} tiene coordenadas inválidas, omitiendo...`)
+          continue
+        }
+
+        // Calcular distancia
+        const distance = calculateDistance(workerLat, workerLng, locationLat, locationLng)
+
+        locationDistances.push({
+          location: location,
+          distance: distance,
+          withinRadius: distance <= geofenceRadius,
+        })
+
+        console.log(
+          `Domicilio: ${location.name}, Distancia: ${Math.round(distance)}m, Radio: ${geofenceRadius}m, Dentro: ${distance <= geofenceRadius}`,
+        )
+
+        // Si está dentro del radio y es el más cercano hasta ahora
+        if (distance <= geofenceRadius && distance < closestDistance) {
+          closestLocation = location
+          closestDistance = distance
+        }
+      } catch (error) {
+        console.error(`Error al procesar domicilio ${location.name}:`, error)
+        continue
       }
     }
 
-    // Verificar si está dentro del radio permitido
-    if (distance > geofenceRadius) {
-      console.log(`El trabajador está fuera del radio permitido: ${distance} > ${geofenceRadius}`)
-      return {
-        success: false,
-        error: `Estás a ${Math.round(distance)} metros del domicilio. Debes estar a menos de ${geofenceRadius} metros para registrar entrada.`,
-        distance: Math.round(distance),
-        allowedRadius: geofenceRadius,
+    // Verificar si se encontró un domicilio válido
+    if (!closestLocation) {
+      console.log("No se encontró ningún domicilio dentro del radio permitido")
+
+      // Encontrar el domicilio más cercano para mostrar información útil
+      const nearestLocation = locationDistances.reduce((nearest, current) => {
+        return current.distance < nearest.distance ? current : nearest
+      }, locationDistances[0])
+
+      if (nearestLocation) {
+        return {
+          success: false,
+          error: `No estás cerca de ningún domicilio registrado. El más cercano es "${nearestLocation.location.name}" a ${Math.round(nearestLocation.distance)} metros (radio permitido: ${nearestLocation.location.geofence_radius}m).`,
+          nearestLocation: {
+            name: nearestLocation.location.name,
+            distance: Math.round(nearestLocation.distance),
+            allowedRadius: nearestLocation.location.geofence_radius,
+          },
+        }
+      } else {
+        return {
+          success: false,
+          error: "No se encontraron domicilios cercanos. Verifica tu ubicación e intenta nuevamente.",
+        }
       }
     }
-    console.log("El trabajador está dentro del radio permitido")
+
+    console.log(`Domicilio detectado automáticamente: ${closestLocation.name} a ${Math.round(closestDistance)} metros`)
 
     // Verificar si la ubicación tiene una precisión aceptable (si se proporciona)
     if (data.accuracy && data.accuracy > 200) {
@@ -988,7 +1018,6 @@ export async function recordCheckIn(data: any) {
     console.log("Insertando nuevo registro de check-in en la base de datos...")
     let result
     try {
-      // Ensure we're using the correct timestamp format
       const timestamp = new Date(data.timestamp)
       console.log(`Timestamp original: ${data.timestamp}, Timestamp a insertar: ${timestamp.toISOString()}`)
 
@@ -996,7 +1025,7 @@ export async function recordCheckIn(data: any) {
         `INSERT INTO check_in_records 
           (worker_id, location_id, check_in_time, check_in_latitude, check_in_longitude, status) 
          VALUES ($1, $2, $3, $4, $5, 'incomplete') RETURNING id`,
-        [data.workerId, data.locationId, timestamp, data.coordinates.lat, data.coordinates.lng],
+        [data.workerId, closestLocation.id, timestamp, data.coordinates.lat, data.coordinates.lng],
       )
 
       console.log("Registro insertado correctamente con ID:", result[0].id)
@@ -1033,34 +1062,26 @@ export async function recordCheckIn(data: any) {
     const newRecord = newRecords[0]
     console.log("Registro obtenido:", newRecord)
 
-    // Get location name for better user experience
-    let locationName = ""
-    try {
-      const locationData = await query("SELECT name FROM locations WHERE id = $1", [data.locationId])
-      if (locationData && locationData.length > 0) {
-        locationName = locationData[0].name
-      }
-    } catch (error) {
-      console.error("Error al obtener nombre del domicilio:", error)
-    }
-
     // Crear objeto de respuesta
     const responseData = {
       id: newRecord.id.toString(),
       workerId: newRecord.worker_id.toString(),
       locationId: newRecord.location_id.toString(),
-      locationName: locationName,
+      locationName: closestLocation.name,
       timestamp: newRecord.check_in_time.toISOString(),
       coordinates: {
         lat: Number.parseFloat(newRecord.check_in_latitude),
         lng: Number.parseFloat(newRecord.check_in_longitude),
       },
+      detectedDistance: Math.round(closestDistance),
+      allowedRadius: closestLocation.geofence_radius,
     }
 
-    console.log("Check-in completado exitosamente. Datos de respuesta:", responseData)
+    console.log("Check-in automático completado exitosamente. Datos de respuesta:", responseData)
     return {
       success: true,
       data: responseData,
+      message: `Entrada registrada automáticamente en "${closestLocation.name}" (${Math.round(closestDistance)}m de distancia)`,
     }
   } catch (error) {
     console.error("Error al registrar entrada:", error)
@@ -1531,7 +1552,7 @@ export async function getDashboardStats() {
     // Total de domicilios
     const locationsCount = await query("SELECT COUNT(*) as count FROM locations", [])
 
-    // Total de registros de hoy
+    // Total de registros del mes actual
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -1539,9 +1560,9 @@ export async function getDashboardStats() {
       today,
     ])
 
-    // Horas trabajadas en el último mes
-    const lastMonth = new Date()
-    lastMonth.setMonth(lastMonth.getMonth() - 1)
+    // Horas trabajadas en el mes actual (en lugar de "último mes")
+    const now = new Date()
+    const firstDayOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
     const monthlyRecords = await query(
       `
@@ -1553,7 +1574,7 @@ export async function getDashboardStats() {
         check_in_time >= $1 AND 
         check_out_time IS NOT NULL AND
         status = 'completed'`,
-      [lastMonth],
+      [firstDayOfCurrentMonth],
     )
 
     let totalMinutes = 0
@@ -1783,11 +1804,11 @@ export async function getWorkerMonthSummary(workerId: string) {
     return {
       month: currentMonth,
       year: now.getFullYear(),
-      totalRecords,
-      totalMinutes,
-      totalHours,
-      remainingMinutes,
-      averageDailyMinutes,
+      totalRecords: totalRecords,
+      totalMinutes: totalMinutes,
+      totalHours: totalHours,
+      remainingMinutes: remainingMinutes,
+      averageDailyMinutes: averageDailyMinutes,
       formattedTotal: `${totalHours}h ${remainingMinutes}m`,
       formattedAverage:
         averageDailyMinutes > 0 ? `${Math.floor(averageDailyMinutes / 60)}h ${averageDailyMinutes % 60}m` : "0h 0m",

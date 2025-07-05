@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   LogOut,
   MapPin,
@@ -16,7 +15,6 @@ import {
   Loader2,
   FileText,
   Bell,
-  Home,
   History,
 } from "lucide-react"
 import { logout, recordCheckIn, recordCheckOut, getElderlyLocations, getActiveCheckIn } from "@/lib/actions"
@@ -54,7 +52,6 @@ export default function WorkerDashboard({ user }: { user: any }) {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [locations, setLocations] = useState<any[]>([])
-  const [selectedLocation, setSelectedLocation] = useState<string>("")
   const [currentStatus, setCurrentStatus] = useState<"out" | "in">("out")
   const [currentCheckIn, setCurrentCheckIn] = useState<any>(null)
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null)
@@ -182,8 +179,8 @@ export default function WorkerDashboard({ user }: { user: any }) {
       setShowPermissionRequest(false)
 
       // Si hay una ubicación seleccionada, calcular la distancia
-      if (selectedLocation) {
-        const location = locations.find((loc) => loc.id === selectedLocation)
+      if (currentCheckIn?.locationId) {
+        const location = locations.find((loc) => loc.id === currentCheckIn.locationId)
         if (location) {
           // Aquí podríamos calcular la distancia, pero lo dejamos para el check-in
           console.log("Ubicación actual:", newPosition)
@@ -227,15 +224,6 @@ export default function WorkerDashboard({ user }: { user: any }) {
       toast({
         title: "Error",
         description: "No se pudo identificar al usuario. Por favor, inicie sesión nuevamente.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!selectedLocation) {
-      toast({
-        title: "Error",
-        description: "Seleccione un domicilio primero",
         variant: "destructive",
       })
       return
@@ -286,19 +274,12 @@ export default function WorkerDashboard({ user }: { user: any }) {
         return
       }
 
-      console.log("Ubicación actual para check-in:", currentPosition)
+      console.log("Ubicación actual para check-in automático:", currentPosition)
       console.log("Precisión de la ubicación:", geoPosition.coords.accuracy, "metros")
 
-      // Obtener la ubicación del domicilio seleccionado
-      const selectedLocationData = locations.find((loc) => loc.id === selectedLocation)
-      if (selectedLocationData) {
-        console.log("Ubicación del domicilio seleccionado:", selectedLocationData.coordinates)
-      }
-
-      // Preparar datos para el check-in
+      // Preparar datos para el check-in automático (sin locationId)
       const checkInData = {
         workerId: userId,
-        locationId: selectedLocation,
         timestamp: new Date().toISOString(),
         coordinates: currentPosition,
         accuracy: geoPosition.coords.accuracy,
@@ -306,7 +287,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
       // Mostrar datos que se enviarán
       setDebugInfo(`Enviando datos: ${JSON.stringify(checkInData, null, 2)}`)
-      console.log("Enviando datos de check-in:", checkInData)
+      console.log("Enviando datos de check-in automático:", checkInData)
 
       // Registrar el check-in con reintentos
       let result = null
@@ -315,7 +296,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
       while (attempts < maxAttempts && (!result || !result.success)) {
         attempts++
-        console.log(`Intento ${attempts} de registro de check-in`)
+        console.log(`Intento ${attempts} de registro de check-in automático`)
 
         try {
           result = await recordCheckIn(checkInData)
@@ -324,7 +305,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
           if (result.success) break
 
           // Si hay un error pero no es de distancia o precisión, no reintentar
-          if (!result.distance && !result.accuracyError) break
+          if (!result.nearestLocation && !result.accuracyError) break
 
           // Pequeña pausa entre reintentos
           if (attempts < maxAttempts) await new Promise((r) => setTimeout(r, 1000))
@@ -357,7 +338,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
           toast({
             title: "Éxito",
-            description: "Entrada registrada correctamente",
+            description: result.message || "Entrada registrada correctamente",
           })
         } else {
           console.error("Error: result.data es undefined o null", result)
@@ -369,14 +350,14 @@ export default function WorkerDashboard({ user }: { user: any }) {
           })
         }
       } else {
-        if (result && result.distance && result.allowedRadius) {
-          setDistanceInfo({
-            distance: result.distance,
-            allowedRadius: result.allowedRadius,
+        if (result && result.nearestLocation) {
+          // Mostrar información sobre el domicilio más cercano
+          toast({
+            title: "Fuera de rango",
+            description: `${result.error}`,
+            variant: "destructive",
           })
-        }
-
-        if (result && result.accuracyError) {
+        } else if (result && result.accuracyError) {
           // Mostrar un mensaje específico para errores de precisión
           toast({
             title: "Error de precisión",
@@ -614,18 +595,18 @@ export default function WorkerDashboard({ user }: { user: any }) {
   }
 
   const getSelectedLocationCoordinates = () => {
-    if (!selectedLocation) return null
+    if (!currentCheckIn || !currentCheckIn.locationId) return null
 
-    const location = locations.find((loc) => loc.id === selectedLocation)
+    const location = locations.find((loc) => loc.id === currentCheckIn.locationId)
     if (!location) return null
 
     return location.coordinates
   }
 
   const getSelectedLocationRadius = () => {
-    if (!selectedLocation) return 100
+    if (!currentCheckIn || !currentCheckIn.locationId) return 100
 
-    const location = locations.find((loc) => loc.id === selectedLocation)
+    const location = locations.find((loc) => loc.id === currentCheckIn.locationId)
     if (!location) return 100
 
     return location.geofenceRadius
@@ -647,7 +628,6 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
         // Actualizar el estado con los datos de la base de datos
         setCurrentCheckIn(result.data)
-        setSelectedLocation(result.data.locationId)
         setCurrentStatus("in")
 
         // Actualizar también el localStorage para mantener sincronización
@@ -725,7 +705,6 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
           // Actualizar el estado
           setCurrentCheckIn(checkInData)
-          setSelectedLocation(checkInData.locationId)
           setCurrentStatus("in")
           console.log("Sesión activa encontrada en localStorage:", checkInData)
           return true
@@ -984,7 +963,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
                         size="sm"
                         onClick={refreshLocation}
                         disabled={refreshingLocation}
-                        className="flex items-center gap-1 btn-with-icon w-full sm:w-auto"
+                        className="flex items-center gap-1 btn-with-icon w-full sm:w-auto bg-transparent"
                       >
                         <RefreshCw className={`h-3 w-3 ${refreshingLocation ? "animate-spin" : ""}`} />
                         <span className="text-xs sm:text-sm">
@@ -997,34 +976,28 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
                     {currentStatus === "out" ? (
                       <div className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium flex items-center gap-2">
-                            <Home className="h-4 w-4 text-primary/70" />
-                            Seleccione domicilio
-                          </label>
-                          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                            <SelectTrigger className="bg-white border-gray-200">
-                              <SelectValue placeholder="Seleccionar domicilio" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {locations.map((location) => (
-                                <SelectItem key={location.id} value={location.id}>
-                                  {location.name} - {location.address}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                          <div className="flex items-center">
+                            <MapPin className="h-5 w-5 text-blue-500 mr-2 flex-shrink-0" />
+                            <div>
+                              <h3 className="font-medium text-blue-800">Detección automática</h3>
+                              <p className="text-sm text-blue-700">
+                                La aplicación detectará automáticamente el domicilio más cercano cuando registres tu
+                                entrada.
+                              </p>
+                            </div>
+                          </div>
                         </div>
 
                         <Button
                           className="w-full gradient-bg hover:opacity-90 transition-all py-6 btn-with-icon"
                           onClick={handleCheckIn}
-                          disabled={loading || !selectedLocation}
+                          disabled={loading || !permissionGranted}
                         >
                           {loading ? (
                             <>
                               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Registrando...
+                              Detectando domicilio...
                             </>
                           ) : (
                             <>
@@ -1033,6 +1006,17 @@ export default function WorkerDashboard({ user }: { user: any }) {
                             </>
                           )}
                         </Button>
+
+                        {!permissionGranted && (
+                          <Alert className="border-amber-200 bg-amber-50">
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            <AlertTitle className="text-amber-800">Ubicación requerida</AlertTitle>
+                            <AlertDescription className="text-amber-700">
+                              Necesitas permitir el acceso a tu ubicación para que la aplicación pueda detectar
+                              automáticamente el domicilio.
+                            </AlertDescription>
+                          </Alert>
+                        )}
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -1104,7 +1088,7 @@ export default function WorkerDashboard({ user }: { user: any }) {
                     description={
                       currentStatus === "in"
                         ? "Ubicación de entrada registrada"
-                        : "Seleccione un domicilio para registrar entrada"
+                        : "La aplicación detectará automáticamente el domicilio más cercano"
                     }
                   />
                 </div>

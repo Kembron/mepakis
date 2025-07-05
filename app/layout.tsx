@@ -7,9 +7,9 @@ import ForceLocationPermission from "@/components/force-location-permission"
 const inter = Inter({ subsets: ["latin"], display: "swap" })
 
 export const metadata = {
-  title: "Cuidadores App",
+  title: "Mepakis | Gestión",
   description: "Aplicación para gestión de cuidadores a domicilio",
-  generator: "v0.dev",
+  generator: "Kembron",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 }
 
