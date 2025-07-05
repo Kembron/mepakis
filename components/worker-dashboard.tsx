@@ -72,6 +72,11 @@ export default function WorkerDashboard({ user }: { user: any }) {
     duration: number
     locationName: string
   } | null>(null)
+  const [detailedError, setDetailedError] = useState<{
+    title: string
+    description: string
+    suggestions?: string[]
+  } | null>(null)
 
   // Asegurarse de que tenemos un ID de usuario válido
   const userId = user?.id ? String(user.id) : ""
@@ -222,8 +227,8 @@ export default function WorkerDashboard({ user }: { user: any }) {
   const handleCheckIn = async () => {
     if (!userId) {
       toast({
-        title: "Error",
-        description: "No se pudo identificar al usuario. Por favor, inicie sesión nuevamente.",
+        title: "Error de autenticación",
+        description: "No se pudo identificar al usuario. Por favor, cierre sesión e inicie sesión nuevamente.",
         variant: "destructive",
       })
       return
@@ -231,8 +236,9 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
     if (!permissionGranted && !position) {
       toast({
-        title: "Error",
-        description: "Debes permitir el acceso a tu ubicación para registrar entrada",
+        title: "Ubicación requerida",
+        description:
+          "Debe permitir el acceso a su ubicación para registrar entrada. Haga clic en 'Permitir' cuando su navegador lo solicite.",
         variant: "destructive",
       })
       setShowPermissionRequest(true)
@@ -256,6 +262,12 @@ export default function WorkerDashboard({ user }: { user: any }) {
       let geoPosition
 
       try {
+        console.log("Obteniendo ubicación actual...")
+        toast({
+          title: "Obteniendo ubicación",
+          description: "Detectando su ubicación actual...",
+        })
+
         geoPosition = await getCurrentPosition()
         currentPosition = {
           lat: geoPosition.coords.latitude,
@@ -265,11 +277,34 @@ export default function WorkerDashboard({ user }: { user: any }) {
         setLocationAccuracy(geoPosition.coords.accuracy)
         setPermissionGranted(true)
         setShowPermissionRequest(false)
+
+        console.log("Ubicación obtenida correctamente:", currentPosition)
       } catch (geoError) {
         console.error("Error al obtener ubicación:", geoError)
-        setLocationError(
-          "No se pudo obtener tu ubicación. Asegúrate de permitir el acceso a la ubicación en tu navegador.",
-        )
+
+        let locationErrorMessage = "No se pudo obtener su ubicación."
+
+        if (geoError instanceof Error) {
+          if (geoError.message.includes("denied")) {
+            locationErrorMessage =
+              "Acceso a ubicación denegado. Por favor, permita el acceso a la ubicación en su navegador y recargue la página."
+          } else if (geoError.message.includes("unavailable")) {
+            locationErrorMessage =
+              "Su ubicación no está disponible. Verifique que el GPS esté activado y que tenga conexión a internet."
+          } else if (geoError.message.includes("timeout")) {
+            locationErrorMessage =
+              "Se agotó el tiempo de espera para obtener su ubicación. Intente nuevamente en un área con mejor señal."
+          } else {
+            locationErrorMessage = `Error de ubicación: ${geoError.message}`
+          }
+        }
+
+        setLocationError(locationErrorMessage)
+        toast({
+          title: "Error de ubicación",
+          description: locationErrorMessage,
+          variant: "destructive",
+        })
         setLoading(false)
         return
       }
@@ -277,7 +312,17 @@ export default function WorkerDashboard({ user }: { user: any }) {
       console.log("Ubicación actual para check-in automático:", currentPosition)
       console.log("Precisión de la ubicación:", geoPosition.coords.accuracy, "metros")
 
-      // Preparar datos para el check-in automático (sin locationId)
+      // Verificar precisión de la ubicación
+      if (geoPosition.coords.accuracy > 100) {
+        const accuracyWarning = `La precisión de su ubicación es de ±${Math.round(geoPosition.coords.accuracy)} metros. Para mayor precisión, intente en un área con mejor señal GPS o WiFi.`
+        toast({
+          title: "Precisión de ubicación baja",
+          description: accuracyWarning,
+          variant: "default",
+        })
+      }
+
+      // Preparar datos para el check-in automático
       const checkInData = {
         workerId: userId,
         timestamp: new Date().toISOString(),
@@ -285,9 +330,12 @@ export default function WorkerDashboard({ user }: { user: any }) {
         accuracy: geoPosition.coords.accuracy,
       }
 
-      // Mostrar datos que se enviarán
-      setDebugInfo(`Enviando datos: ${JSON.stringify(checkInData, null, 2)}`)
       console.log("Enviando datos de check-in automático:", checkInData)
+
+      toast({
+        title: "Procesando entrada",
+        description: "Detectando domicilio más cercano...",
+      })
 
       // Registrar el check-in con reintentos
       let result = null
@@ -304,87 +352,161 @@ export default function WorkerDashboard({ user }: { user: any }) {
 
           if (result.success) break
 
-          // Si hay un error pero no es de distancia o precisión, no reintentar
-          if (!result.nearestLocation && !result.accuracyError) break
+          // Si hay un error específico, no reintentar
+          if (result.error && !result.nearestLocation && !result.accuracyError) break
 
           // Pequeña pausa entre reintentos
-          if (attempts < maxAttempts) await new Promise((r) => setTimeout(r, 1000))
+          if (attempts < maxAttempts) {
+            console.log(`Reintentando en 1 segundo... (intento ${attempts + 1}/${maxAttempts})`)
+            await new Promise((r) => setTimeout(r, 1000))
+          }
         } catch (err) {
           console.error(`Error en intento ${attempts}:`, err)
+          result = {
+            success: false,
+            error: `Error de conexión: ${err instanceof Error ? err.message : "Error desconocido"}`,
+          }
         }
       }
 
-      setDebugInfo((prevInfo) => `${prevInfo || ""}\n\nRespuesta del servidor: ${JSON.stringify(result, null, 2)}`)
+      setDebugInfo(`Respuesta del servidor: ${JSON.stringify(result, null, 2)}`)
 
       if (result && result.success) {
         setCurrentStatus("in")
 
-        // Asegurarse de que result.data existe antes de guardarlo
         if (result.data) {
-          // Crear una copia local para evitar problemas de referencia
           const checkInDataToStore = {
             ...result.data,
-            userId: userId, // Añadir el ID del usuario para validación
+            userId: userId,
           }
           setCurrentCheckIn(checkInDataToStore)
 
-          // Guardar en localStorage para persistencia con clave específica del usuario
           try {
             localStorage.setItem(getCheckInStorageKey(userId), JSON.stringify(checkInDataToStore))
-            console.log(`Datos de check-in guardados en localStorage para usuario ${userId}:`, checkInDataToStore)
+            console.log(`Datos de check-in guardados en localStorage para usuario ${userId}`)
           } catch (storageError) {
             console.error("Error al guardar en localStorage:", storageError)
           }
 
           toast({
-            title: "Éxito",
-            description: result.message || "Entrada registrada correctamente",
+            title: "✅ Entrada registrada exitosamente",
+            description: result.message || `Entrada registrada en "${result.data.locationName || "domicilio"}"`,
           })
         } else {
           console.error("Error: result.data es undefined o null", result)
-          setDebugInfo((prevInfo) => `${prevInfo || ""}\n\nError: result.data es undefined o null`)
           toast({
-            title: "Error",
-            description: "La respuesta del servidor no contiene los datos esperados",
+            title: "Error en la respuesta",
+            description:
+              "La entrada se registró pero no se recibieron todos los datos. Verifique en el historial de registros.",
             variant: "destructive",
           })
         }
       } else {
-        if (result && result.nearestLocation) {
-          // Mostrar información sobre el domicilio más cercano
-          toast({
-            title: "Fuera de rango",
-            description: `${result.error}`,
-            variant: "destructive",
-          })
-        } else if (result && result.accuracyError) {
-          // Mostrar un mensaje específico para errores de precisión
-          toast({
-            title: "Error de precisión",
-            description: result.error,
-            variant: "destructive",
-          })
+        // Manejo detallado de errores específicos
+        let errorTitle = "❌ No se pudo registrar la entrada"
+        let errorDescription = "Error desconocido"
+
+        if (result) {
+          if (result.nearestLocation) {
+            // Error de distancia - fuera del rango permitido
+
+            setDetailedError({
+              title: "Fuera del área permitida",
+              description: result.error,
+              suggestions: [
+                "Acérquese más al domicilio asignado",
+                "Verifique que esté en la dirección correcta",
+                "Si cree que está en el lugar correcto, contacte al administrador",
+              ],
+            })
+
+            // También mostrar una alerta visual en la interfaz
+            setDistanceInfo({
+              distance: result.nearestLocation.distance || 0,
+              allowedRadius: result.nearestLocation.allowedRadius || 100,
+            })
+          } else if (result.accuracyError) {
+            // Error de precisión de ubicación
+
+            setDetailedError({
+              title: "Precisión de ubicación insuficiente",
+              description: result.error,
+              suggestions: [
+                "Muévase a un área abierta o cerca de una ventana",
+                "Asegúrese de que el GPS esté activado",
+                "Espere unos segundos para que mejore la señal",
+                "Intente desactivar y reactivar la ubicación en su dispositivo",
+              ],
+            })
+          } else if (result.error) {
+            // Otros errores específicos
+            if (result.error.includes("entrada activa")) {
+              errorTitle = "⚠️ Ya tiene una entrada activa"
+              errorDescription =
+                "Ya tiene una entrada registrada. Debe registrar la salida antes de hacer una nueva entrada."
+            } else if (result.error.includes("domicilios")) {
+              errorTitle = "🏠 No hay domicilios disponibles"
+              errorDescription = "No se encontraron domicilios registrados en el sistema. Contacte al administrador."
+            } else if (result.error.includes("coordenadas")) {
+              errorTitle = "📍 Error en las coordenadas"
+              errorDescription = "Las coordenadas de ubicación no son válidas. Intente actualizar su ubicación."
+            } else {
+              errorDescription = result.error
+            }
+
+            toast({
+              title: errorTitle,
+              description: errorDescription,
+              variant: "destructive",
+            })
+          }
         } else {
+          // Error de conexión o servidor
+          errorTitle = "🌐 Error de conexión"
+          errorDescription =
+            "No se pudo conectar con el servidor. Verifique su conexión a internet e intente nuevamente."
+
           toast({
-            title: "Error",
-            description: result?.error || "No se pudo registrar la entrada",
+            title: errorTitle,
+            description: errorDescription,
             variant: "destructive",
           })
         }
+
+        // Log detallado para debugging
+        console.error("Error detallado en check-in:", {
+          result,
+          attempts,
+          checkInData,
+          currentPosition,
+        })
       }
     } catch (error) {
-      console.error("Error completo:", error)
-      setDebugInfo(
-        (prevInfo) => `${prevInfo || ""}\n\nError: ${error instanceof Error ? error.message : String(error)}`,
-      )
-      setLocationError(
-        "No se pudo obtener tu ubicación. Asegúrate de permitir el acceso a la ubicación en tu navegador.",
-      )
+      console.error("Error completo en handleCheckIn:", error)
+
+      let errorTitle = "💥 Error inesperado"
+      let errorDescription = "Ocurrió un error inesperado al registrar la entrada."
+
+      if (error instanceof Error) {
+        if (error.message.includes("ubicación")) {
+          errorTitle = "📍 Error de ubicación"
+          errorDescription = "No se pudo obtener su ubicación. Verifique los permisos de ubicación en su navegador."
+        } else if (error.message.includes("red") || error.message.includes("network")) {
+          errorTitle = "🌐 Error de red"
+          errorDescription = "Problema de conexión a internet. Verifique su conexión e intente nuevamente."
+        } else {
+          errorDescription = `Error: ${error.message}`
+        }
+      }
+
+      setLocationError(errorDescription)
       toast({
-        title: "Error",
-        description: "Error al obtener la ubicación o registrar la entrada",
+        title: errorTitle,
+        description: errorDescription + "\n\nSi el problema persiste, contacte al administrador.",
         variant: "destructive",
       })
+
+      setDebugInfo(`Error: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setLoading(false)
     }
@@ -922,6 +1044,29 @@ export default function WorkerDashboard({ user }: { user: any }) {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Error de ubicación</AlertTitle>
                         <AlertDescription>{locationError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {detailedError && (
+                      <Alert variant="destructive" className="border-red-200 bg-red-50 animate-fadeIn">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>{detailedError.title}</AlertTitle>
+                        <AlertDescription>
+                          <p>{detailedError.description}</p>
+                          {detailedError.suggestions && detailedError.suggestions.length > 0 && (
+                            <div className="mt-2">
+                              <p className="font-medium">Sugerencias:</p>
+                              <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                                {detailedError.suggestions.map((suggestion, index) => (
+                                  <li key={index}>{suggestion}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => setDetailedError(null)} className="mt-3">
+                            Entendido
+                          </Button>
+                        </AlertDescription>
                       </Alert>
                     )}
 
