@@ -164,21 +164,27 @@ function AdminDashboardContent({ user }: { user: any }) {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <header className="dashboard-header shadow-lg sticky top-0 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 border-b border-white/20 sticky top-0 z-50">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-          <h1 className="text-xl sm:text-2xl font-bold text-white truncate flex items-center">
-            <span className="hidden sm:inline">Panel</span> Admin
-          </h1>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+              <BarChart className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">¡Hola, {user.name}!</h1>
+              <p className="text-xs text-gray-600 hidden sm:block">Administración</p>
+            </div>
+          </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden sm:block bg-white/25 px-3 py-1.5 rounded-full text-sm text-white backdrop-blur-sm truncate">
-              {user.name}
+            <div className="hidden sm:block bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm text-gray-700 border border-white/40">
+              Administrador
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={handleLogout}
-              className="bg-white/20 text-white border-white/40 hover:bg-white/30 text-xs sm:text-sm btn-with-icon"
+              className="bg-white/60 text-gray-700 border-white/40 hover:bg-white/80 text-xs sm:text-sm btn-with-icon backdrop-blur-sm"
             >
               <LogOut className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Cerrar sesión</span>
@@ -186,14 +192,14 @@ function AdminDashboardContent({ user }: { user: any }) {
             <div className="md:hidden">
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
+                  <Button variant="ghost" size="icon" className="text-gray-700 hover:bg-white/20">
                     <Menu className="h-6 w-6" />
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="p-0 w-64 bg-gray-800 text-white">
                   <div className="p-4 border-b border-gray-700 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                      <Users className="h-4 w-4 text-white" />
+                      <BarChart className="h-4 w-4 text-white" />
                     </div>
                     <div>
                       <h2 className="text-lg font-semibold">Menú</h2>
